@@ -1,79 +1,203 @@
-import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../utils/generateToken.js";
 import { deleteMediaFromCloudinary, uploadMedia } from "../utils/cloudinary.js";
 import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
 import crypto from "crypto";
+import prisma from "../database/db.js";
 
-/**
- * Create a new user account
- * @route POST /api/v1/users/signup
- */
 export const createUserAccount = catchAsync(async (req, res) => {
-  // TODO: Implement create user account functionality
-});
+  const { name, email, password, role = "student" } = req.body;
 
-/**
- * Authenticate user and get token
- * @route POST /api/v1/users/signin
- */
+  const existingUser = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+  });
+  if (existingUser) {
+    throw new AppError("User already exists with this email", 400);
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email: email.toLowerCase(),
+      password,
+      role,
+    },
+  });
+  await user.updateLastActive();
+  generateToken(res, user._id, "Account created successfully");
+}); 
+
 export const authenticateUser = catchAsync(async (req, res) => {
-  // TODO: Implement user authentication functionality
+  const { email, password } = req.body;
+
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+    select: { password: true },
+  });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    throw new AppError("Invalid email or password", 401);
+  }
+
+  await user.updateLastActive();
+  generateToken(res, user.id, `Welcome back ${user.name}`);
 });
 
-/**
- * Sign out user and clear cookie
- * @route POST /api/v1/users/signout
- */
 export const signOutUser = catchAsync(async (_, res) => {
-  // TODO: Implement sign out functionality
+  res.cookie("token", "", { maxAge: 0 });
+  res.status(200).json({
+    success: true,
+    message: "Signed out successfully",
+  });
 });
 
-/**
- * Get current user profile
- * @route GET /api/v1/users/profile
- */
 export const getCurrentUserProfile = catchAsync(async (req, res) => {
-  // TODO: Implement get current user profile functionality
+  const user = await prisma.user.findUnique({
+    where: { id: req.id },
+    include: {
+      enrolledCourses: {
+        include: {
+          course: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      ...user.toJSON(),
+      totalEnrolledCourses: user.totalEnrolledCourses,
+    },
+  }); 
 });
 
-/**
- * Update user profile
- * @route PATCH /api/v1/users/profile
- */
 export const updateUserProfile = catchAsync(async (req, res) => {
-  // TODO: Implement update user profile functionality
+  const { name, email, bio } = req.body;
+  const updateData = { name, email: email?.toLowerCase(), bio };
+
+  if (req.file) {
+    const avatarResult = await uploadMedia(req.file.path);
+    updateData.avatar = avatarResult?.secure_url || req.file.path;
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.id },
+    });
+    if (user.avatar && user.avatar !== "default-avatar.png") {
+      await deleteMediaFromCloudinary(user.avatar);
+    }
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: req.id },
+    data: updateData,
+  });
+
+  if (!updatedUser) {
+    throw new AppError("User not found", 404);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Profile updated successfully",
+    data: updatedUser,
+  });
 });
 
-/**
- * Change user password
- * @route PATCH /api/v1/users/password
- */
 export const changeUserPassword = catchAsync(async (req, res) => {
-  // TODO: Implement change user password functionality
+  const { currentPassword, newPassword } = req.body;
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.id },
+    select: { password: true },
+  });
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  if (!(await bcrypt.compare(currentPassword, user.password))) {
+    throw new AppError("Current password is incorrect", 401);
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Password changed successfully",
+  });
 });
 
-/**
- * Request password reset
- * @route POST /api/v1/users/forgot-password
- */
 export const forgotPassword = catchAsync(async (req, res) => {
-  // TODO: Implement forgot password functionality
+  const { email } = req.body;
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+  });
+
+  if (!user) {
+    throw new AppError("No user found with this email", 404);
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; 
+  await user.save({ validateBeforeSave: false });
+
+  res.status(200).json({
+    success: true,
+    message: "Password reset instructions sent to email",
+  });
 });
 
-/**
- * Reset password
- * @route POST /api/v1/users/reset-password/:token
- */
 export const resetPassword = catchAsync(async (req, res) => {
-  // TODO: Implement reset password functionality
+  const { token } = req.params;
+  const { password } = req.body;
+
+  const user = await prisma.user.findUnique({
+    where: {
+      resetPasswordToken: crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex"),
+      resetPasswordExpire: { $gt: Date.now() },
+    },
+  });
+
+  if (!user) {
+    throw new AppError("Invalid or expired reset token", 400);
+  }
+
+  user.password = password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Password reset successful",
+  });
 });
 
-/**
- * Delete user account
- * @route DELETE /api/v1/users/account
- */
 export const deleteUserAccount = catchAsync(async (req, res) => {
-  // TODO: Implement delete user account functionality
+  const user = await prisma.user.findUnique({
+    where: { id: req.id },
+  });
+
+  if (user.avatar && user.avatar !== "default-avatar.png") {
+    await deleteMediaFromCloudinary(user.avatar);
+  }
+
+  await prisma.user.delete({
+    where: { id: req.id },
+  });
+
+  res.cookie("token", "", { maxAge: 0 });
+  res.status(200).json({
+    success: true,
+    message: "Account deleted successfully",
+  });
 });

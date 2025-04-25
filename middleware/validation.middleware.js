@@ -3,13 +3,13 @@ import { AppError } from './error.middleware.js';
 
 export const validate = (validations) => {
     return async (req, res, next) => {
-        // Run all validations
         await Promise.all(validations.map(validation => validation.run(req)));
 
         const errors = validationResult(req);
         if (errors.isEmpty()) {
             return next();
         }
+
 
         const extractedErrors = errors.array().map(err => ({
             field: err.path,
@@ -20,7 +20,6 @@ export const validate = (validations) => {
     };
 };
 
-// Common validation chains
 export const commonValidations = {
     pagination: [
         query('page')
@@ -70,7 +69,6 @@ export const commonValidations = {
             .withMessage('Please provide a valid URL')
 };
 
-// User validation chains
 export const validateSignup = validate([
     commonValidations.name,
     commonValidations.email,

@@ -1,9 +1,7 @@
-import { Course } from "../models/course.model.js";
-import { Lecture } from "../models/lecture.model.js";
-import { User } from "../models/user.model.js";
 import { deleteMediaFromCloudinary, uploadMedia } from "../utils/cloudinary.js";
 import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
+import prisma from "../database/db.js";
 
 /**
  * Create a new course
@@ -20,19 +18,24 @@ export const createNewCourse = catchAsync(async (req, res) => {
     throw new AppError("Course thumbnail is required", 400);
   }
 
-  const course = await Course.create({
-    title,
-    subtitle,
-    description,
-    category,
-    level,
-    price,
-    thumbnail,
-    instructor: req.id,
+  const course = await prisma.course.create({
+    data: {
+      title,
+      subtitle,
+      description,
+      category,
+      level,
+      price,
+      thumbnail,
+      instructorId: req.id,
+    },
   });
 
-  await User.findByIdAndUpdate(req.id, {
-    $push: { createdCourses: course._id },
+  await prisma.user.update({
+    where: { id: req.id },
+    data: {
+      createdCourses: { connect: { id: course.id } },
+    },
   });
 
   res.status(201).json({
@@ -93,12 +96,10 @@ export const searchCourses = catchAsync(async (req, res) => {
       sortOptions.createdAt = -1;
   }
 
-  const courses = await Course.find(searchCriteria)
-    .populate({
-      path: "instructor",
-      select: "name avatar",
-    })
-    .sort(sortOptions);
+  const courses = await prisma.course.findMany({
+    where: searchCriteria,
+    orderBy: sortOptions,
+  });
 
   res.status(200).json({
     success: true,
@@ -116,17 +117,14 @@ export const getPublishedCourses = catchAsync(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const [courses, total] = await Promise.all([
-    Course.find({ isPublished: true })
-      .populate({
-        path: "instructor",
-        select: "name avatar",
-      })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    Course.countDocuments({ isPublished: true }),
-  ]);
+  const courses = await prisma.course.findMany({
+    where: { isPublished: true },
+    orderBy: { createdAt: "desc" },
+    skip,
+    take: limit,
+  });
+  const total = await prisma.course.count({ where: { isPublished: true } });
+
 
   res.status(200).json({
     success: true,
@@ -145,9 +143,8 @@ export const getPublishedCourses = catchAsync(async (req, res) => {
  * @route GET /api/v1/courses/my-courses
  */
 export const getMyCreatedCourses = catchAsync(async (req, res) => {
-  const courses = await Course.find({ instructor: req.id }).populate({
-    path: "enrolledStudents",
-    select: "name avatar",
+  const courses = await prisma.course.findMany({
+    where: { instructorId: req.id },
   });
 
   res.status(200).json({
@@ -165,13 +162,12 @@ export const updateCourseDetails = catchAsync(async (req, res) => {
   const { courseId } = req.params;
   const { title, subtitle, description, category, level, price } = req.body;
 
-  const course = await Course.findById(courseId);
-  if (!course) {
-    throw new AppError("Course not found", 404);
-  }
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+  });
 
   // Verify ownership
-  if (course.instructor.toString() !== req.id) {
+  if (course.instructorId !== req.id) {
     throw new AppError("Not authorized to update this course", 403);
   }
 
@@ -185,9 +181,9 @@ export const updateCourseDetails = catchAsync(async (req, res) => {
     thumbnail = result?.secure_url || req.file.path;
   }
 
-  const updatedCourse = await Course.findByIdAndUpdate(
-    courseId,
-    {
+  const updatedCourse = await prisma.course.update({
+    where: { id: courseId },
+    data: {
       title,
       subtitle,
       description,
@@ -196,8 +192,7 @@ export const updateCourseDetails = catchAsync(async (req, res) => {
       price,
       ...(thumbnail && { thumbnail }),
     },
-    { new: true, runValidators: true }
-  );
+  });
 
   res.status(200).json({
     success: true,
@@ -211,15 +206,13 @@ export const updateCourseDetails = catchAsync(async (req, res) => {
  * @route GET /api/v1/courses/:courseId
  */
 export const getCourseDetails = catchAsync(async (req, res) => {
-  const course = await Course.findById(req.params.courseId)
-    .populate({
-      path: "instructor",
-      select: "name avatar bio",
-    })
-    .populate({
-      path: "lectures",
-      select: "title videoUrl duration isPreview order",
-    });
+  const course = await prisma.course.findUnique({
+    where: { id: req.params.courseId },
+    include: {
+      instructor: true,
+      lectures: true,
+    },
+  });
 
   if (!course) {
     throw new AppError("Course not found", 404);
@@ -243,11 +236,13 @@ export const addLectureToCourse = catchAsync(async (req, res) => {
   const { courseId } = req.params;
 
   // Get course and verify ownership
-  const course = await Course.findById(courseId);
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+  });
   if (!course) {
     throw new AppError("Course not found", 404);
   }
-  if (course.instructor.toString() !== req.id) {
+  if (course.instructorId !== req.id) {
     throw new AppError("Not authorized to update this course", 403);
   }
 
@@ -263,19 +258,23 @@ export const addLectureToCourse = catchAsync(async (req, res) => {
   }
 
   // Create lecture with video details from cloudinary
-  const lecture = await Lecture.create({
-    title,
-    description,
-    isPreview,
-    order: course.lectures.length + 1,
-    videoUrl: result?.secure_url || req.file.path,
-    publicId: result?.public_id || req.file.path,
-    duration: result?.duration || 0, // Cloudinary provides duration for video files
+  const lecture = await prisma.lecture.create({
+    data: {
+      title,
+      description,
+      isPreview,
+      order: course.lectures.length + 1,
+      videoUrl: result?.secure_url || req.file.path,
+      publicId: result?.public_id || req.file.path,
+      duration: result?.duration || 0, // Cloudinary provides duration for video files
+    },
   });
 
   // Add lecture to course
-  course.lectures.push(lecture._id);
-  await course.save();
+  await prisma.course.update({
+    where: { id: courseId },
+    data: { lectures: { connect: { id: lecture.id } } },
+  });
 
   res.status(201).json({
     success: true,
@@ -289,10 +288,11 @@ export const addLectureToCourse = catchAsync(async (req, res) => {
  * @route GET /api/v1/courses/:courseId/lectures
  */
 export const getCourseLectures = catchAsync(async (req, res) => {
-  const course = await Course.findById(req.params.courseId).populate({
-    path: "lectures",
-    select: "title description videoUrl duration isPreview order",
-    options: { sort: { order: 1 } },
+  const course = await prisma.course.findUnique({
+    where: { id: req.params.courseId },
+    include: {
+      lectures: true,
+    },
   });
 
   if (!course) {
@@ -301,7 +301,7 @@ export const getCourseLectures = catchAsync(async (req, res) => {
 
   // Check if user has access to full course content
   const isEnrolled = course.enrolledStudents.includes(req.id);
-  const isInstructor = course.instructor.toString() === req.id;
+  const isInstructor = course.instructorId === req.id;
 
   let lectures = course.lectures;
   if (!isEnrolled && !isInstructor) {

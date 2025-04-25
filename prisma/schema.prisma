@@ -1,0 +1,150 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Enum definitions
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id                  String             @id @default(cuid())
+  name                String
+  email               String             @unique
+  password            String
+  role                UserRole           @default(STUDENT)
+  avatar              String             @default("default-avatar.png")
+  bio                 String?
+  enrolledCourses     CourseEnrollment[]
+  createdCourses      Course[]
+  resetPasswordToken  String?
+  resetPasswordExpire DateTime?
+  lastActive          DateTime           @default(now())
+  courseProgresses    CourseProgress[]
+  coursePurchases     CoursePurchase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Course {
+  id               String             @id @default(cuid())
+  title            String
+  subtitle         String?
+  description      String?
+  category         String
+  level            CourseLevel        @default(BEGINNER)
+  price            Float
+  thumbnail        String
+  enrolledStudents CourseEnrollment[]
+  lectures         Lecture[]
+  instructor       User               @relation(fields: [instructorId], references: [id])
+  instructorId     String
+  isPublished      Boolean            @default(false)
+  totalDuration    Float              @default(0)
+  totalLectures    Int                @default(0)
+  courseProgresses CourseProgress[]
+  coursePurchases  CoursePurchase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lecture {
+  id              String            @id @default(cuid())
+  title           String
+  description     String?
+  videoUrl        String
+  duration        Float             @default(0)
+  publicId        String
+  isPreview       Boolean           @default(false)
+  order           Int
+  course          Course            @relation(fields: [courseId], references: [id])
+  courseId        String
+  lectureProgress LectureProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CourseEnrollment {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  course     Course   @relation(fields: [courseId], references: [id])
+  courseId   String
+  enrolledAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+}
+
+model CourseProgress {
+  id                   String            @id @default(cuid())
+  user                 User              @relation(fields: [userId], references: [id])
+  userId               String
+  course               Course            @relation(fields: [courseId], references: [id])
+  courseId             String
+  isCompleted          Boolean           @default(false)
+  completionPercentage Float             @default(0)
+  lectureProgress      LectureProgress[]
+  lastAccessed         DateTime          @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+}
+
+model LectureProgress {
+  id               String         @id @default(cuid())
+  lecture          Lecture        @relation(fields: [lectureId], references: [id])
+  lectureId        String
+  courseProgress   CourseProgress @relation(fields: [courseProgressId], references: [id])
+  courseProgressId String
+  isCompleted      Boolean        @default(false)
+  watchTime        Float          @default(0)
+  lastWatched      DateTime       @default(now())
+}
+
+model CoursePurchase {
+  id            String         @id @default(cuid())
+  course        Course         @relation(fields: [courseId], references: [id])
+  courseId      String
+  user          User           @relation(fields: [userId], references: [id])
+  userId        String
+  amount        Float
+  currency      String         @default("USD")
+  status        PurchaseStatus @default(PENDING)
+  paymentMethod String
+  paymentId     String
+  refundId      String?
+  refundAmount  Float?
+  refundReason  String?
+  metadata      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, courseId])
+  @@index([status])
+}

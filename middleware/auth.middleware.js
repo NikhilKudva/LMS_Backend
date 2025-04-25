@@ -4,7 +4,6 @@ import { catchAsync } from "./error.middleware.js";
 import { User } from "../models/user.model.js";
 
 export const isAuthenticated = catchAsync(async (req, res, next) => {
-  // Check if token exists in cookies
   const token = req.cookies.token;
   if (!token) {
     throw new AppError(
@@ -12,14 +11,13 @@ export const isAuthenticated = catchAsync(async (req, res, next) => {
       401
     );
   }
-
   try {
-    // Verify token
-    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Add user ID to request
     req.id = decoded.userId;
-    const user = await User.findById(req.id);
+    const user = await prisma.user.findUnique({
+      where: { id: req.id },
+    });
     if (!user) {
       throw new AppError("User not found", 404);
     }
@@ -38,10 +36,8 @@ export const isAuthenticated = catchAsync(async (req, res, next) => {
   }
 });
 
-// Middleware for role-based access control
 export const restrictTo = (...roles) => {
   return catchAsync(async (req, res, next) => {
-    // roles is an array ['admin', 'instructor']
     if (!roles.includes(req.user.role)) {
       throw new AppError(
         "You do not have permission to perform this action",
@@ -52,7 +48,6 @@ export const restrictTo = (...roles) => {
   });
 };
 
-// Optional authentication middleware
 export const optionalAuth = catchAsync(async (req, res, next) => {
   try {
     const token = req.cookies.token;
@@ -62,7 +57,6 @@ export const optionalAuth = catchAsync(async (req, res, next) => {
     }
     next();
   } catch (error) {
-    // If token is invalid, just continue without authentication
     next();
   }
 });
