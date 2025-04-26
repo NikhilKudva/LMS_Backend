@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
-"scripts": {
+  "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js"
   },
@@ -30,6 +30,9 @@
     "prisma": "^6.6.0",
     "razorpay": "^2.9.2",
     "stripe": "^14.14.0",
+    "swagger": "^0.7.5",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "xss-clean": "^0.1.4",
     "zod": "^3.24.3"
   }

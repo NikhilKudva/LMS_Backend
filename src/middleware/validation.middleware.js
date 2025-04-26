@@ -54,9 +54,7 @@ export const commonValidations = {
         body('name')
             .trim()
             .isLength({ min: 2, max: 50 })
-            .withMessage('Name must be between 2 and 50 characters')
-            .matches(/^[a-zA-Z\s]*$/)
-            .withMessage('Name can only contain letters and spaces'),
+            .withMessage('Name must be between 2 and 50 characters'),
 
     price:
         body('price')

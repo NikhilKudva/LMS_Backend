@@ -4,6 +4,22 @@ import { uploadMedia } from "../utils/cloudinary.js";
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * /api/v1/media/upload-video:
+ *   post:
+ *     summary: Upload a video
+ *     tags: [Media]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Video uploaded successfully
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */         
 router.route("/upload-video").post(upload.single("file"), async(req,res) => {
     try {
         const result = await uploadMedia(req.file.path);

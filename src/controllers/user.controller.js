@@ -5,9 +5,11 @@ import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
 import crypto from "crypto";
 import { prisma } from "../database/db.js";
+import { UserRole } from "@prisma/client";
+
 
 export const createUserAccount = catchAsync(async (req, res) => {
-  const { name, email, password, role = "student" } = req.body;
+  const { name, email, password, role = UserRole.STUDENT } = req.body;
 
   const existingUser = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
@@ -15,32 +17,58 @@ export const createUserAccount = catchAsync(async (req, res) => {
   if (existingUser) {
     throw new AppError("User already exists with this email", 400);
   }
-
+  const hashedPassword = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
     data: {
       name,
       email: email.toLowerCase(),
-      password,
+      password: hashedPassword,
       role,
+      lastActive: new Date(),
     },
   });
-  await user.updateLastActive();
-  generateToken(res, user._id, "Account created successfully");
+  const userWithoutPassword = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    bio: user.bio,
+    lastActive: user.lastActive,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+  
+  generateToken(res, userWithoutPassword, "Account created successfully");
 }); 
 
 export const authenticateUser = catchAsync(async (req, res) => {
   const { email, password } = req.body;
 
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
-    select: { password: true },
+    where: { email: email.toLowerCase() }
   });
   if (!user || !(await bcrypt.compare(password, user.password))) {
     throw new AppError("Invalid email or password", 401);
   }
 
-  await user.updateLastActive();
-  generateToken(res, user.id, `Welcome back ${user.name}`);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastActive: new Date() },
+  });
+  const userWithoutPassword = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    bio: user.bio,
+    lastActive: user.lastActive,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
+
+  generateToken(res, userWithoutPassword, `Welcome back ${user.name}`);
 });
 
 export const signOutUser = catchAsync(async (_, res) => {
@@ -71,7 +99,7 @@ export const getCurrentUserProfile = catchAsync(async (req, res) => {
     success: true,
     data: {
       ...user.toJSON(),
-      totalEnrolledCourses: user.totalEnrolledCourses,
+      totalEnrolledCourses: user.enrolledCourses.length,
     },
   }); 
 });
@@ -110,6 +138,7 @@ export const updateUserProfile = catchAsync(async (req, res) => {
 
 export const changeUserPassword = catchAsync(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
+  const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
   const user = await prisma.user.findUnique({
     where: { id: req.id },
@@ -122,9 +151,10 @@ export const changeUserPassword = catchAsync(async (req, res) => {
   if (!(await bcrypt.compare(currentPassword, user.password))) {
     throw new AppError("Current password is incorrect", 401);
   }
-
-  user.password = newPassword;
-  await user.save();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashedNewPassword, lastActive: new Date() },
+  });
 
   res.status(200).json({
     success: true,
@@ -143,10 +173,13 @@ export const forgotPassword = catchAsync(async (req, res) => {
   }
 
   const resetToken = crypto.randomBytes(32).toString("hex");
-  user.resetPasswordToken = resetToken;
-  user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; 
-  await user.save({ validateBeforeSave: false });
-
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      resetPasswordToken: resetToken,
+      resetPasswordExpire: new Date(Date.now() + 10 * 60 * 1000)
+    }
+  });
   res.status(200).json({
     success: true,
     message: "Password reset instructions sent to email",
@@ -171,10 +204,10 @@ export const resetPassword = catchAsync(async (req, res) => {
     throw new AppError("Invalid or expired reset token", 400);
   }
 
-  user.password = password;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
-  await user.save();
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: password, resetPasswordToken: undefined, resetPasswordExpire: undefined, lastActive: new Date() },
+  });
 
   res.status(200).json({
     success: true,

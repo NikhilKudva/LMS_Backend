@@ -13,8 +13,15 @@ import purchaseRoute from "./routes/purchaseCourse.route.js";
 import courseProgressRoute from "./routes/courseProgress.route.js";
 import razorpayRoute from "./routes/razorpay.routes.js";
 import healthRoute from "./routes/health.routes.js";
+import connectDB from "./database/db.js";
+import swaggerUi from "swagger-ui-express";
+import swaggerJSDoc from "swagger-jsdoc";
+import swaggerOptions from "./utils/swagger.js";
 
-dotenv.config({path:".env"});
+
+dotenv.config({ path: ".env" });
+
+await connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -64,6 +71,13 @@ app.use(
 );
 //allow cross-origin requests from the frontend
 //we allow a specific origin to make requests to the backend
+
+const swaggerSpec = swaggerJSDoc(swaggerOptions);
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
 
 app.use("/api/v1/media", mediaRoute);
 app.use("/api/v1/user", userRoute);

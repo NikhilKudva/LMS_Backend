@@ -14,27 +14,143 @@ import { validateSignup, validateSignin, validatePasswordChange } from "../middl
 
 const router = express.Router();
 
-// Auth routes
+/**
+ * @swagger
+ * /api/v1/user/signup:
+ *   post:
+ *     summary: Create a new user account
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:  
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
 router.post("/signup", validateSignup, createUserAccount);
+
+
+/**
+ * @swagger
+ * /api/v1/user/signin:
+ *   post:
+ *     summary: Authenticate user
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:                  
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User authenticated successfully
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */                 
 router.post("/signin", validateSignin, authenticateUser);
+
+/**
+ * @swagger                     
+ * /api/v1/user/signout:    
+ *   post:
+ *     summary: Sign out user
+ *     tags: [User]
+ *     responses:
+ *       200:
+ *         description: User signed out successfully
+ *       400:
+ *         description: Bad Request
+ */
 router.post("/signout", signOutUser);
 
-// Profile routes
+/**
+ * @swagger
+ * /api/v1/user/profile:
+ *   get:       
+ *     summary: Get current user profile
+ *     tags: [User]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile
+ *       400:
+ *         description: Bad Request
+ */
 router.get("/profile", isAuthenticated, getCurrentUserProfile);
-router.patch("/profile", 
-    isAuthenticated, 
-    upload.single("avatar"), 
+
+/**
+ * @swagger
+ * /api/v1/user/profile:
+ *   patch:
+ *     summary: Update user profile
+ *     tags: [User]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile updated successfully
+ *       400:
+ *         description: Bad Request
+ */
+router.patch("/profile",
+    isAuthenticated,
+    upload.single("avatar"),
     updateUserProfile
 );
 
-// Password management
+/**
+ * @swagger
+ * /api/v1/user/change-password:
+ *   patch:
+ *     summary: Change user password
+ *     tags: [User]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User password changed successfully
+ */ 
 router.patch("/change-password",
     isAuthenticated,
     validatePasswordChange,
     changeUserPassword
 );
 
-// Account management
+/**
+ * @swagger
+ * /api/v1/user/account:
+ *   delete:
+ *     summary: Delete user account
+ *     tags: [User]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User account deleted successfully
+ */
 router.delete("/account", isAuthenticated, deleteUserAccount);
 
 export default router;

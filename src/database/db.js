@@ -5,7 +5,7 @@ dotenv.config({path:".env"});
 const prisma = new PrismaClient();
 
 const MAX_RETRIES = 3;
-const RETRY_INTERVAL = 5000; // 5 seconds
+const RETRY_INTERVAL = 5000; 
 
 class DatabaseConnection {
     constructor() {
@@ -44,7 +44,7 @@ class DatabaseConnection {
 
     async connect() {
         try {
-            if (!process.env.POSTGRES_URI) {
+            if (!process.env.DATABASE_URL) {
                 throw new Error('Postgres URI is not defined in environment variables');
             }
 
@@ -55,7 +55,8 @@ class DatabaseConnection {
                     console.log(e.query);
                 });
             }
-            this.retryCount = 0; // Reset retry count on successful connection
+            console.log('✅ Postgres connected successfully');
+            this.retryCount = 0; 
             
         } catch (error) {
             console.error('Failed to connect to Postgres:', error.message);

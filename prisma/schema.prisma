@@ -42,6 +42,7 @@ model User {
   lastActive          DateTime           @default(now())
   courseProgresses    CourseProgress[]
   coursePurchases     CoursePurchase[]
+  courseRatings       CourseRating[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -62,9 +63,22 @@ model Course {
   instructorId     String
   isPublished      Boolean            @default(false)
   totalDuration    Float              @default(0)
-  totalLectures    Int                @default(0)
   courseProgresses CourseProgress[]
   coursePurchases  CoursePurchase[]
+  courseRatings    CourseRating[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CourseRating {
+  id       String  @id @default(cuid())
+  user     User    @relation(fields: [userId], references: [id])
+  userId   String
+  course   Course  @relation(fields: [courseId], references: [id])
+  courseId String
+  rating   Float
+  review   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

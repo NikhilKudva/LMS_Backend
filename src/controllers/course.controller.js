@@ -2,13 +2,11 @@ import { deleteMediaFromCloudinary, uploadMedia } from "../utils/cloudinary.js";
 import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
 import { prisma } from "../database/db.js";
+import { CourseLevel } from "@prisma/client";
 
-/**
- * Create a new course
- * @route POST /api/v1/courses
- */
 export const createNewCourse = catchAsync(async (req, res) => {
-  const { title, subtitle, description, category, level, price } = req.body;
+  const { title, subtitle, description, category = "Programming", level = CourseLevel.BEGINNER, price } = req.body;
+  const instructorId = req.user.id;
 
   let thumbnail;
   if (req.file) {
@@ -25,14 +23,14 @@ export const createNewCourse = catchAsync(async (req, res) => {
       description,
       category,
       level,
-      price,
+      price: Number(price),
       thumbnail,
-      instructorId: req.id,
+      instructorId,
     },
   });
 
   await prisma.user.update({
-    where: { id: req.id },
+    where: { id: instructorId },
     data: {
       createdCourses: { connect: { id: course.id } },
     },
@@ -45,10 +43,6 @@ export const createNewCourse = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Search courses with filters
- * @route GET /api/v1/courses/search
- */
 export const searchCourses = catchAsync(async (req, res) => {
   const {
     query = "",
@@ -108,10 +102,6 @@ export const searchCourses = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Get all published courses
- * @route GET /api/v1/courses/published
- */
 export const getPublishedCourses = catchAsync(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -138,10 +128,6 @@ export const getPublishedCourses = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Get courses created by the current user
- * @route GET /api/v1/courses/my-courses
- */
 export const getMyCreatedCourses = catchAsync(async (req, res) => {
   const courses = await prisma.course.findMany({
     where: { instructorId: req.id },
@@ -154,10 +140,6 @@ export const getMyCreatedCourses = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Update course details
- * @route PATCH /api/v1/courses/:courseId
- */
 export const updateCourseDetails = catchAsync(async (req, res) => {
   const { courseId } = req.params;
   const { title, subtitle, description, category, level, price } = req.body;
@@ -201,10 +183,6 @@ export const updateCourseDetails = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Get course by ID
- * @route GET /api/v1/courses/:courseId
- */
 export const getCourseDetails = catchAsync(async (req, res) => {
   const course = await prisma.course.findUnique({
     where: { id: req.params.courseId },
@@ -227,10 +205,6 @@ export const getCourseDetails = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Add lecture to course
- * @route POST /api/v1/courses/:courseId/lectures
- */
 export const addLectureToCourse = catchAsync(async (req, res) => {
   const { title, description, isPreview } = req.body;
   const { courseId } = req.params;
@@ -283,10 +257,6 @@ export const addLectureToCourse = catchAsync(async (req, res) => {
   });
 });
 
-/**
- * Get course lectures
- * @route GET /api/v1/courses/:courseId/lectures
- */
 export const getCourseLectures = catchAsync(async (req, res) => {
   const course = await prisma.course.findUnique({
     where: { id: req.params.courseId },
@@ -316,5 +286,46 @@ export const getCourseLectures = catchAsync(async (req, res) => {
       isEnrolled,
       isInstructor,
     },
+  });
+});
+
+export const addCourseRating = catchAsync(async (req, res) => {
+  const { courseId } = req.params;
+  const { rating, review } = req.body;
+
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+  });
+  if (!course) {
+    throw new AppError("Course not found", 404);
+  }
+
+  const courseRating = await prisma.courseRating.create({
+    data: {
+      courseId,
+      rating,
+      review,
+      userId: req.id,
+    },
+  });
+
+  res.status(201).json({
+    success: true,
+    message: "Course rating added successfully",
+    data: courseRating,
+  });
+});
+
+export const getAvgCourseRatings = catchAsync(async (req, res) => {
+  const { courseId } = req.params;
+  
+  const avgRating = await prisma.courseRating.aggregate({
+    where: { courseId },
+    _avg: { rating: true },
+  });
+
+  res.status(200).json({
+    success: true,
+    data: avgRating._avg.rating,
   });
 });

@@ -5,6 +5,7 @@ import { prisma } from "../database/db.js";
 
 export const isAuthenticated = catchAsync(async (req, res, next) => {
   const token = req.cookies.token;
+  console.log(token);
   if (!token) {
     throw new AppError(
       "You are not logged in. Please log in to get access.",
@@ -12,8 +13,8 @@ export const isAuthenticated = catchAsync(async (req, res, next) => {
     );
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    console.log(decoded);
     req.id = decoded.userId;
     const user = await prisma.user.findUnique({
       where: { id: req.id },
