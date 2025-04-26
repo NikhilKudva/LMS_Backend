@@ -1,8 +1,7 @@
 import Stripe from "stripe";
-import { CoursePurchase } from "../models/coursePurchase.model.js";
 import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
-import prisma from "../database/db.js";
+import { prisma } from "../database/db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -42,8 +41,8 @@ export const initiateStripeCheckout = catchAsync(async (req, res) => {
       },
     ],
     mode: "payment",
-    success_url: `${process.env.CORS_ORIGIN}/course-progress/${courseId}`,
-    cancel_url: `${process.env.CORS_ORIGIN}/course-detail/${courseId}`,
+    success_url: `${process.env.CLIENT_URL}/course-progress/${courseId}`,
+    cancel_url: `${process.env.CLIENT_URL}/course-detail/${courseId}`,
     metadata: {
       courseId: courseId,
       userId: req.id,

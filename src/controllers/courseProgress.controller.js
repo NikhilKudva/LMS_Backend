@@ -1,4 +1,4 @@
-import prisma from "../database/db.js";
+import { prisma } from "../database/db.js";
 import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
 

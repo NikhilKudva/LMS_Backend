@@ -4,7 +4,7 @@ import { deleteMediaFromCloudinary, uploadMedia } from "../utils/cloudinary.js";
 import { catchAsync } from "../middleware/error.middleware.js";
 import { AppError } from "../middleware/error.middleware.js";
 import crypto from "crypto";
-import prisma from "../database/db.js";
+import { prisma } from "../database/db.js";
 
 export const createUserAccount = catchAsync(async (req, res) => {
   const { name, email, password, role = "student" } = req.body;

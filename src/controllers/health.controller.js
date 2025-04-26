@@ -1,5 +1,5 @@
-import prisma from '../database/db.js';
-import { catchAsync } from '../middleware/error.middleware.js';
+import { prisma } from "../database/db.js";
+import { catchAsync } from "../middleware/error.middleware.js";
 
 export const checkHealth = catchAsync(async (req, res) => {
   const healthStatus = {

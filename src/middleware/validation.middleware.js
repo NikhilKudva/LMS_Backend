@@ -1,4 +1,4 @@
-import { body, param, query, validationResult } from 'express-validator';
+import { body, param, validationResult,query } from 'express-validator';
 import { AppError } from './error.middleware.js';
 
 export const validate = (validations) => {

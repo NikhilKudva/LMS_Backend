@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { AppError } from "./error.middleware.js";
 import { catchAsync } from "./error.middleware.js";
-import { User } from "../models/user.model.js";
+import { prisma } from "../database/db.js";
 
 export const isAuthenticated = catchAsync(async (req, res, next) => {
   const token = req.cookies.token;
